@@ -8,24 +8,37 @@ require_once("config.php");
 
 $product = null;
 $error_message = "";
+$today = date('Y-m-d'); // Lấy ngày hiện tại để kiểm tra khuyến mãi
 
 // Lấy mã sản phẩm từ URL
 if (isset($_GET['id']) && !empty($_GET['id'])) {
     $maMH = $conn->real_escape_string($_GET['id']);
 
-    // CẬP NHẬT SQL: Lấy thêm p.maTH và p.maDM để dùng làm link dự phòng
+    // CẬP NHẬT SQL: Join thêm bảng khuyenmai để lấy thông tin giảm giá
     $sql = "SELECT p.maMH, p.tenMH, p.DonGia, p.soLuongTon, p.hinhAnh, p.moTa, 
-                   p.maTH, p.maDM, 
-                   b.tenTH AS thuongHieu, c.tenDM AS danhMuc
+                   p.maTH, p.maDM, p.maKM,
+                   b.tenTH AS thuongHieu, c.tenDM AS danhMuc,
+                   km.phantramgiam, km.ngayBD, km.ngayKT
             FROM mathang p
             LEFT JOIN thuonghieu b ON p.maTH = b.maTH
             LEFT JOIN danhmucsp c ON p.maDM = c.maDM
+            LEFT JOIN khuyenmai km ON p.maKM = km.maKM
             WHERE p.maMH = '$maMH'";
 
     $result = $conn->query($sql);
 
     if ($result && $result->num_rows > 0) {
         $product = $result->fetch_assoc();
+        
+        // --- LOGIC TÍNH GIÁ KHUYẾN MÃI ---
+        $is_sale = false;
+        $final_price = $product['DonGia'];
+        
+        // Nếu sản phẩm có mã KM và ngày hiện tại nằm trong khoảng cho phép
+        if (!empty($product['maKM']) && $today >= $product['ngayBD'] && $today <= $product['ngayKT']) {
+            $is_sale = true;
+            $final_price = $product['DonGia'] - ($product['DonGia'] * ($product['phantramgiam'] / 100));
+        }
     } else {
         $error_message = "Sản phẩm không tồn tại hoặc đã bị xóa.";
     }
@@ -34,23 +47,19 @@ if (isset($_GET['id']) && !empty($_GET['id'])) {
 }
 
 // --- XỬ LÝ LINK "TIẾP TỤC MUA SẮM" THÔNG MINH ---
-$backUrl = "products.php"; // Mặc định về trang chủ sản phẩm
-
-// Cách 1: Ưu tiên quay về đúng nơi vừa đến (Lịch sử duyệt web)
+$backUrl = "products.php"; 
 if (isset($_SERVER['HTTP_REFERER'])) {
     $referer = $_SERVER['HTTP_REFERER'];
-    // Chỉ lấy link nếu nó chứa 'products.php' (để tránh quay về Google hoặc trang ngoài)
     if (strpos($referer, 'products.php') !== false) {
         $backUrl = $referer;
     }
-} 
-// Cách 2: Nếu không có lịch sử (ví dụ copy link gửi bạn bè), tự động về Danh mục của sản phẩm này
-elseif ($product && !empty($product['maDM'])) {
+} elseif ($product && !empty($product['maDM'])) {
     $backUrl = "products.php?maDM=" . $product['maDM'];
 }
 ?>
 
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 
 <style>
     :root {
@@ -60,10 +69,7 @@ elseif ($product && !empty($product['maDM'])) {
         --bg-color: #f9f9f9;
     }
 
-    body {
-        background-color: var(--bg-color);
-        font-family: 'Poppins', sans-serif;
-    }
+    body { background-color: var(--bg-color); font-family: 'Poppins', sans-serif; }
 
     .product-detail-container {
         max-width: 1100px;
@@ -74,9 +80,23 @@ elseif ($product && !empty($product['maDM'])) {
         display: flex;
         flex-wrap: wrap;
         overflow: hidden;
+        position: relative; /* Để định vị badge giảm giá */
     }
 
-    /* --- Cột bên trái: Hình ảnh --- */
+    /* Badge giảm giá */
+    .sale-badge {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background: var(--primary-color);
+        color: white;
+        padding: 8px 15px;
+        border-radius: 5px;
+        font-weight: 700;
+        z-index: 10;
+        box-shadow: 0 4px 10px rgba(233, 30, 99, 0.3);
+    }
+
     .product-image-section {
         flex: 1 1 400px;
         padding: 40px;
@@ -94,11 +114,8 @@ elseif ($product && !empty($product['maDM'])) {
         filter: drop-shadow(0 10px 15px rgba(0,0,0,0.1));
     }
 
-    .product-image:hover {
-        transform: scale(1.05);
-    }
+    .product-image:hover { transform: scale(1.05); }
 
-    /* --- Cột bên phải: Thông tin --- */
     .product-info-section {
         flex: 1 1 500px;
         padding: 40px;
@@ -122,11 +139,19 @@ elseif ($product && !empty($product['maDM'])) {
         line-height: 1.2;
     }
 
+    /* CSS cho Giá */
+    .product-price-wrapper { margin-bottom: 20px; }
     .product-price {
         font-size: 2rem;
         color: var(--primary-color);
         font-weight: 600;
-        margin-bottom: 20px;
+    }
+    .old-price {
+        font-size: 1.2rem;
+        color: #aaa;
+        text-decoration: line-through;
+        margin-left: 15px;
+        font-weight: 400;
     }
 
     .product-meta {
@@ -143,7 +168,6 @@ elseif ($product && !empty($product['maDM'])) {
         border-radius: 5px;
     }
 
-    /* --- Phần mô tả --- */
     .product-description {
         margin-bottom: 30px;
         font-size: 1rem;
@@ -152,35 +176,9 @@ elseif ($product && !empty($product['maDM'])) {
         color: #444;
     }
 
-    .description-content {
-        margin-top: 15px;
-        line-height: 1.8;
-        overflow-wrap: break-word;
-    }
+    .description-content { margin-top: 15px; line-height: 1.8; overflow-wrap: break-word; }
 
-    .description-content img {
-        max-width: 100% !important;
-        height: auto !important;
-        border-radius: 5px;
-        margin: 10px 0;
-        display: block;
-    }
-    
-    .description-content ul, .description-content ol {
-        margin-left: 20px;
-        margin-bottom: 10px;
-    }
-    
-    .description-content p {
-        margin-bottom: 10px;
-    }
-
-    /* --- Nút bấm --- */
-    .action-buttons {
-        margin-top: auto;
-        display: flex;
-        gap: 15px;
-    }
+    .action-buttons { margin-top: auto; display: flex; gap: 15px; }
 
     .btn-add-cart {
         background-color: var(--primary-color);
@@ -211,22 +209,12 @@ elseif ($product && !empty($product['maDM'])) {
         font-size: 0.9rem;
     }
 
-    .back-link:hover {
-        color: var(--primary-color);
-    }
+    .back-link:hover { color: var(--primary-color); }
 
     @media (max-width: 768px) {
-        .product-detail-container {
-            flex-direction: column;
-            margin: 15px;
-            border-radius: 0;
-        }
-        .product-image-section {
-            padding: 20px;
-        }
-        .product-name {
-            font-size: 1.8rem;
-        }
+        .product-detail-container { flex-direction: column; margin: 15px; border-radius: 0; }
+        .product-image-section { padding: 20px; }
+        .product-name { font-size: 1.8rem; }
     }
 </style>
 
@@ -237,6 +225,10 @@ elseif ($product && !empty($product['maDM'])) {
             <a href="products.php" class="btn-add-cart" style="max-width: 200px;">Quay lại cửa hàng</a>
         </div>
     <?php else: ?>
+        <?php if ($is_sale): ?>
+            <div class="sale-badge">GIẢM <?php echo (float)$product['phantramgiam']; ?>%</div>
+        <?php endif; ?>
+
         <div class="product-image-section">
             <img src="<?php echo htmlspecialchars($product['hinhAnh']); ?>" 
                  alt="<?php echo htmlspecialchars($product['tenMH']); ?>" 
@@ -250,8 +242,15 @@ elseif ($product && !empty($product['maDM'])) {
             
             <h1 class="product-name"><?php echo htmlspecialchars($product['tenMH']); ?></h1>
             
-            <div class="product-price">
-                <?php echo number_format($product['DonGia'], 0, ',', '.') ?> ₫
+            <div class="product-price-wrapper">
+                <span class="product-price">
+                    <?php echo number_format($final_price, 0, ',', '.') ?> ₫
+                </span>
+                <?php if ($is_sale): ?>
+                    <span class="old-price">
+                        <?php echo number_format($product['DonGia'], 0, ',', '.') ?> ₫
+                    </span>
+                <?php endif; ?>
             </div>
 
             <div class="product-meta">
@@ -262,16 +261,13 @@ elseif ($product && !empty($product['maDM'])) {
             <div class="product-description">
                 <strong>Chi tiết sản phẩm:</strong>
                 <div class="description-content">
-                    <?php 
-                        // Hiển thị mô tả full HTML
-                        echo $product['moTa']; 
-                    ?>
+                    <?php echo $product['moTa']; ?>
                 </div>
             </div>
 
             <div class="action-buttons">
                 <a href="add_to_cart.php?id=<?php echo $product['maMH']; ?>" class="btn-add-cart">
-                    THÊM VÀO GIỎ
+                    <i class="fa-solid fa-cart-shopping"></i> THÊM VÀO GIỎ
                 </a>
             </div>
             

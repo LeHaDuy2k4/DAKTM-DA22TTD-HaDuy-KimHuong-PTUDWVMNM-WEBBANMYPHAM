@@ -1,5 +1,4 @@
 <?php
-// BẮT BUỘC: Khởi động session nếu chưa chạy
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -7,100 +6,74 @@ if (session_status() === PHP_SESSION_NONE) {
 require("header.php");
 require_once("config.php");
 
-// --- Khởi tạo biến
 $products = [];
 $filter_title = "Tất cả sản phẩm";
-$sql_where = "";
-$param_type = "";
-$param_value = "";
-$is_filtered = false;
+$sql_where = "WHERE 1=1"; // Sử dụng 1=1 để dễ dàng nối chuỗi logic AND
+$params = [];
+$param_types = "";
+$today = date('Y-m-d');
 
-// --- Xử lý lọc & truy vấn
 if (isset($conn) && $conn->connect_error === null) {
+    
+    // 1. XỬ LÝ TÌM KIẾM (Nếu có tham số query từ header)
+    if (isset($_GET['query']) && !empty(trim($_GET['query']))) {
+        $search = trim($_GET['query']);
+        $sql_where .= " AND (m.tenMH LIKE ? OR m.maMH LIKE ?)";
+        $param_types .= "ss";
+        $searchTerm = "%$search%";
+        $params[] = $searchTerm;
+        $params[] = $searchTerm;
+        $filter_title = "Kết quả tìm kiếm cho: '" . htmlspecialchars($search) . "'";
+    }
 
-    // Lọc theo thương hiệu
+    // 2. XỬ LÝ LỌC THEO THƯƠNG HIỆU
     if (isset($_GET['maTH']) && !empty($_GET['maTH'])) {
         $maTH = $_GET['maTH'];
-        $sql_where = "WHERE maTH = ?";
-        $param_type = "s";
-        $param_value = $maTH;
-        $is_filtered = true;
+        $sql_where .= " AND m.maTH = ?";
+        $param_types .= "s";
+        $params[] = $maTH;
 
-        // Lấy tên thương hiệu để hiển thị tiêu đề
         $stmt_name = $conn->prepare("SELECT tenTH FROM thuonghieu WHERE maTH = ?");
-        if ($stmt_name === false) {
-            die("Lỗi SQL chuẩn bị truy vấn Tên Thương hiệu: " . $conn->error);
-        }
         $stmt_name->bind_param("s", $maTH);
         $stmt_name->execute();
-        $result_name = $stmt_name->get_result();
-        if ($result_name->num_rows > 0) {
-            $filter_title = "Sản phẩm của Thương hiệu: " . htmlspecialchars($result_name->fetch_assoc()['tenTH']);
-        } else {
-            $filter_title = "Thương hiệu không tồn tại";
-        }
+        $res = $stmt_name->get_result();
+        if ($row = $res->fetch_assoc()) $filter_title = "Thương hiệu: " . $row['tenTH'];
         $stmt_name->close();
-
-    }
-    // Lọc theo danh mục
-    elseif (isset($_GET['maDM']) && !empty($_GET['maDM'])) {
+    } 
+    
+    // 3. XỬ LÝ LỌC THEO DANH MỤC
+    if (isset($_GET['maDM']) && !empty($_GET['maDM'])) {
         $maDM = $_GET['maDM'];
-        $sql_where = "WHERE maDM = ?";
-        $param_type = "s";
-        $param_value = $maDM;
-        $is_filtered = true;
+        $sql_where .= " AND m.maDM = ?";
+        $param_types .= "s";
+        $params[] = $maDM;
 
-        // Lấy tên danh mục
         $stmt_name = $conn->prepare("SELECT tenDM FROM danhmucsp WHERE maDM = ?");
-        if ($stmt_name === false) {
-            die("Lỗi SQL chuẩn bị truy vấn Tên Danh mục: " . $conn->error);
-        }
         $stmt_name->bind_param("s", $maDM);
         $stmt_name->execute();
-        $result_name = $stmt_name->get_result();
-        if ($result_name->num_rows > 0) {
-            $filter_title = "Sản phẩm thuộc Danh mục: " . htmlspecialchars($result_name->fetch_assoc()['tenDM']);
-        } else {
-            $filter_title = "Danh mục không tồn tại";
-        }
+        $res = $stmt_name->get_result();
+        if ($row = $res->fetch_assoc()) $filter_title = "Danh mục: " . $row['tenDM'];
         $stmt_name->close();
     }
 
-    // Câu truy vấn lấy sản phẩm (chỉ lấy những cột cần thiết)
-    $sql_base = "SELECT maMH, tenMH, donGia, soluongTon, moTa, hinhAnh FROM mathang ";
-    $sql_full = $sql_base . $sql_where . " ORDER BY tenMH ASC";
+    // 4. TRUY VẤN SẢN PHẨM + KHUYẾN MÃI
+    $sql = "SELECT m.maMH, m.tenMH, m.donGia, m.hinhAnh, m.maKM, 
+                   km.phantramgiam, km.ngayBD, km.ngayKT 
+            FROM mathang m 
+            LEFT JOIN khuyenmai km ON m.maKM = km.maKM 
+            $sql_where 
+            ORDER BY m.tenMH ASC";
 
-    if ($is_filtered) {
-        $stmt_products = $conn->prepare($sql_full);
-        if ($stmt_products === false) {
-            die("<h1>Lỗi cơ sở dữ liệu</h1>
-                <p>Kiểm tra lại tên bảng/cột trong CSDL.</p>
-                <p><b>Lỗi MySQL:</b> " . $conn->error . "</p>
-                <p><b>Câu lệnh SQL:</b> " . htmlspecialchars($sql_full) . "</p>");
-        }
-        $stmt_products->bind_param($param_type, $param_value);
-        $stmt_products->execute();
-        $result_products = $stmt_products->get_result();
-    } else {
-        $result_products = $conn->query($sql_full);
-        if ($result_products === false) {
-            die("<h1>Lỗi cơ sở dữ liệu</h1>
-                <p>Kiểm tra lại tên bảng/cột trong CSDL.</p>
-                <p><b>Lỗi MySQL:</b> " . $conn->error . "</p>
-                <p><b>Câu lệnh SQL:</b> " . htmlspecialchars($sql_full) . "</p>");
-        }
+    $stmt = $conn->prepare($sql);
+    if (!empty($param_types)) {
+        $stmt->bind_param($param_types, ...$params);
     }
-
-    // Lấy dữ liệu vào mảng
-    if ($result_products && $result_products->num_rows > 0) {
-        while ($row = $result_products->fetch_assoc()) {
-            $products[] = $row;
-        }
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $products[] = $row;
     }
-
-    if (isset($stmt_products) && $stmt_products !== false) {
-        $stmt_products->close();
-    }
+    $stmt->close();
 }
 ?>
 
@@ -108,119 +81,123 @@ if (isset($conn) && $conn->connect_error === null) {
 
 <style>
 :root {
-    --cosmetics-accent-color: #E91E63;
-    --cosmetics-text-dark: #333;
+    --accent: #E91E63;
+    --text-main: #333;
+    --gray: #888;
 }
 
-.products-container {
-    max-width: 1300px;
-    margin: 20px auto;
-    padding: 0 20px;
-}
-
-.products-container h1 {
-    font-size: 2rem;
-    color: var(--cosmetics-accent-color);
-    font-weight: 700;
-}
+.products-container { max-width: 1200px; margin: 30px auto; padding: 0 15px; font-family: 'Times New Roman', Times, serif; }
+.products-container h1 { font-size: 1.8rem; color: var(--accent); margin-bottom: 20px; font-weight: 700; border-bottom: 2px solid #ffe1ec; padding-bottom: 10px; }
 
 .product-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 20px;
-    margin-top: 30px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 25px;
 }
 
 .product-item {
-    display: block;
-    border: 1px solid #eee;
+    background: #fff;
+    border-radius: 12px;
     padding: 15px;
-    border-radius: 8px;
     text-align: center;
     text-decoration: none;
-    color: var(--cosmetics-text-dark);
-    transition: box-shadow 0.3s, transform 0.3s;
-    background: white;
-    overflow: hidden;
+    color: var(--text-main);
+    transition: all 0.3s ease;
+    border: 1px solid #f0f0f0;
+    position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 .product-item:hover {
-    box-shadow: 0 6px 15px rgba(233, 30, 99, 0.15);
+    box-shadow: 0 10px 20px rgba(233, 30, 99, 0.1);
     transform: translateY(-5px);
+    border-color: #ffe1ec;
 }
 
-.product-image-wrapper {
-    width: 100%;
-    height: 200px;
-    margin-bottom: 10px;
-    overflow: hidden;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+.discount-tag {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: var(--accent);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    z-index: 2;
 }
 
-.product-image {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-    transition: transform 0.3s;
-}
-
-.product-item:hover .product-image {
-    transform: scale(1.05);
-}
+.product-image-wrapper { height: 200px; display: flex; align-items: center; justify-content: center; margin-bottom: 15px; overflow: hidden; }
+.product-image { max-width: 100%; max-height: 100%; object-fit: contain; transition: transform 0.5s ease; }
+.product-item:hover .product-image { transform: scale(1.08); }
 
 .product-name {
     font-weight: 600;
     font-size: 1rem;
-    margin: 5px 0;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+    height: 2.8em;
     overflow: hidden;
-    height: 2.4em;
+    margin-bottom: 10px;
+    line-height: 1.4;
+    color: #444;
 }
 
-.product-price {
-    color: var(--cosmetics-accent-color);
-    font-weight: 700;
-    font-size: 1.15rem;
-    margin-top: 10px;
-}
+.price-block { margin-top: auto; padding-top: 10px; }
+.new-price { color: var(--accent); font-weight: 700; font-size: 1.2rem; display: block; }
+.old-price { color: var(--gray); text-decoration: line-through; font-size: 0.9rem; margin-right: 5px; }
+
+.no-results { text-align: center; padding: 100px 0; grid-column: 1 / -1; }
+.no-results i { font-size: 4rem; color: #ddd; margin-bottom: 20px; }
 </style>
 
 <div class="products-container">
-    <h1><?php echo $filter_title; ?></h1>
-    <hr style="border-color: #eee;">
-
-    <?php if (!empty($products)): ?>
-        <div class="product-grid">
-            <?php foreach ($products as $product): ?>
-                <a href="product_detail.php?id=<?php echo htmlspecialchars($product['maMH']); ?>" class="product-item">
+    <h1><i class="fa-solid fa-magnifying-glass"></i> <?php echo $filter_title; ?></h1>
+    
+    <div class="product-grid">
+        <?php if (!empty($products)): ?>
+            <?php foreach ($products as $p): 
+                $is_sale = false;
+                $current_price = $p['donGia'];
+                
+                if ($p['maKM'] && $today >= $p['ngayBD'] && $today <= $p['ngayKT']) {
+                    $is_sale = true;
+                    $percent = (float)$p['phantramgiam'];
+                    $current_price = $p['donGia'] - ($p['donGia'] * ($percent / 100));
+                }
+            ?>
+                <a href="product_detail.php?id=<?php echo htmlspecialchars($p['maMH']); ?>" class="product-item">
+                    
+                    <?php if ($is_sale): ?>
+                        <div class="discount-tag">-<?php echo (float)$p['phantramgiam']; ?>%</div>
+                    <?php endif; ?>
 
                     <div class="product-image-wrapper">
-                        <img src="<?php echo htmlspecialchars($product['hinhAnh'] ?? 'default.jpg'); ?>"
-                             alt="<?php echo htmlspecialchars($product['tenMH']); ?>"
-                             class="product-image">
+                        <img src="<?php echo htmlspecialchars($p['hinhAnh']); ?>" 
+                             alt="<?php echo htmlspecialchars($p['tenMH']); ?>" 
+                             class="product-image"
+                             onerror="this.src='https://via.placeholder.com/200?text=Beauty+Product'">
                     </div>
 
-                    <p class="product-name"><?php echo htmlspecialchars($product['tenMH']); ?></p>
+                    <p class="product-name"><?php echo htmlspecialchars($p['tenMH']); ?></p>
 
-                    <p class="product-price">
-                        <?php echo number_format($product['donGia'], 0, ',', '.'); ?> VNĐ
-                    </p>
+                    <div class="price-block">
+                        <?php if ($is_sale): ?>
+                            <span class="old-price"><?php echo number_format($p['donGia'], 0, ',', '.'); ?>₫</span>
+                            <span class="new-price"><?php echo number_format($current_price, 0, ',', '.'); ?>₫</span>
+                        <?php else: ?>
+                            <span class="new-price"><?php echo number_format($p['donGia'], 0, ',', '.'); ?>₫</span>
+                        <?php endif; ?>
+                    </div>
                 </a>
             <?php endforeach; ?>
-        </div>
-    <?php else: ?>
-        <div style="text-align: center; padding: 50px; background: white; border-radius: 8px; margin-top: 20px;">
-            <i class="fa-solid fa-face-sad-tear" style="font-size: 2rem; color: #ccc; margin-bottom: 15px;"></i>
-            <p style="color: #888; font-size: 1.1rem;">
-                Rất tiếc, hiện tại không tìm thấy sản phẩm nào trong bộ lọc này.
-            </p>
-        </div>
-    <?php endif; ?>
-
+        <?php else: ?>
+            <div class="no-results">
+                <i class="fa-solid fa-box-open"></i>
+                <p style="color: #999; font-size: 1.2rem;">Rất tiếc, không tìm thấy sản phẩm nào phù hợp.</p>
+                <a href="products.php" style="color: var(--accent); text-decoration: none; font-weight: bold;">Quay lại danh sách sản phẩm</a>
+            </div>
+        <?php endif; ?>
+    </div>
 </div>
 
 <?php require("footer.php"); ?>

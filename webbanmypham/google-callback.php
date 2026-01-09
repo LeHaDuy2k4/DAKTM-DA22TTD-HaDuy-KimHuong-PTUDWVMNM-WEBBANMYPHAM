@@ -5,8 +5,8 @@ require 'config.php';
 
 $client = new Google_Client();
 $client->setClientId("672995869836-j6fftq3lnioi879o3f4ut2pqa0su4e0m.apps.googleusercontent.com");
-$client->setClientSecret("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");
-$client->setRedirectUri("http://localhost/webbanmypham/google-callback.php");
+$client->setClientSecret("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");
+$client->setRedirectUri("http://localhost/DAKTM-DA22TTD-HaDuy-KimHuong-PTUDWVMNM-WEBBANMYPHAM/webbanmypham/google-callback.php");
 
 if (isset($_GET['code'])) {
 

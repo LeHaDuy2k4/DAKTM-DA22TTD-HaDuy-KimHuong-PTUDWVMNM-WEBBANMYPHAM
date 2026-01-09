@@ -190,6 +190,13 @@ $current_page = basename($_SERVER['PHP_SELF']);
                     <span>Liên hệ</span>
                 </a>
             </li>
+
+            <li>
+                <a href="slideshow.php">
+                   <i class="fa-solid fa-chalkboard"></i>
+                    <span>Trình chiếu</span>
+                </a>
+            </li>
             
             <li>
                 <a href="../index.php">

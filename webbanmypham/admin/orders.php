@@ -1,9 +1,49 @@
-<?php        
-    require("sidebar.php");         
+<?php 
+    // Yêu cầu file sidebar.php (Giả định chứa session_start())
+    require("sidebar.php"); 
+    
+    // Yêu cầu file kết nối database
+    require("../config.php"); 
+
+    // KHAI BÁO BIẾN KIỂM TRA QUYỀN ADMIN (quyen = 1)
+    $isAdmin = isset($_SESSION['quyen']) && $_SESSION['quyen'] == 1;
+
+    // Khởi tạo mảng orders rỗng
+    $orders = [];
+    
+    // ====================================================================
+    // 1. TRUY VẤN CƠ SỞ DỮ LIỆU (JOIN dondathang với nguoidung)
+    // ====================================================================
+    if (isset($conn) && $conn->connect_error === null) {
+        $search = isset($_GET['search']) ? $conn->real_escape_string($_GET['search']) : '';
+        
+        // Truy vấn lấy đơn hàng và họ tên người mua
+        $sql = "SELECT d.maDonhang, d.ngayDat, d.tongTien, d.trangthai, n.hoTen 
+                FROM dondathang d 
+                JOIN nguoidung n ON d.tenDangnhap = n.tenDangnhap";
+        
+        if (!empty($search)) {
+            $sql .= " WHERE d.maDonhang LIKE '%$search%' OR n.hoTen LIKE '%$search%'";
+        }
+        
+        $sql .= " ORDER BY d.ngayDat DESC"; 
+        
+        $result = $conn->query($sql);
+
+        if ($result && $result->num_rows > 0) {
+            while($row = $result->fetch_assoc()) {
+                $orders[] = $row;
+            }
+        }
+    }
 ?>
 
 <style>
-/* --- GIỮ NGUYÊN CSS KHUNG SƯỜN TỪ DASHBOARD --- */
+/* THIẾT LẬP FONT CHỮ TIMES NEW ROMAN TOÀN CỤC */
+* {
+    font-family: "Times New Roman", Times, serif;
+}
+
 .main-content {
     margin-left: 250px; 
     padding: 25px;
@@ -17,7 +57,6 @@
     font-weight: 700;
 }
 
-/* --- TOOLBAR PANEL --- */
 .toolbar-panel {
     background: #ffffff;
     padding: 20px;
@@ -38,260 +77,132 @@
     padding: 5px 5px 5px 15px;
     width: 100%;
     max-width: 400px;
-    transition: 0.3s;
     background: #fff;
 }
 
-.search-group:focus-within {
-    border-color: #e91e63;
-    box-shadow: 0 0 5px rgba(233, 30, 99, 0.2);
-}
-
-.search-group input {
-    border: none;
-    outline: none;
-    flex: 1;
-    color: #555;
-    font-size: 0.95rem;
+.search-group input { 
+    border: none; 
+    outline: none; 
+    flex: 1; 
+    color: #555; 
+    font-size: 0.95rem; /* Giữ nguyên cỡ chữ cũ */
+    font-family: "Times New Roman", Times, serif; 
 }
 
 .btn-search {
-    background: #e91e63;
-    color: white;
-    border: none;
-    border-radius: 50%;
-    width: 35px;
-    height: 35px;
-    cursor: pointer;
-    transition: 0.3s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    background: #e91e63; color: white; border: none; border-radius: 50%;
+    width: 35px; height: 35px; cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
 
-.btn-search:hover { background: #c2185b; }
-
-/* Nút Export thay vì Add New */
-.btn-export {
-    background: #fff;
-    color: #e91e63;
-    border: 1px solid #e91e63;
-    padding: 10px 20px;
-    border-radius: 30px;
-    text-decoration: none;
-    font-weight: 600;
-    transition: 0.3s;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.btn-export:hover { background: #ffeef4; }
-
-/* --- TABLE PANEL --- */
+/* --- TABLE STYLES --- */
 .table-panel {
-    background: #ffffff;
-    padding: 25px;
-    border-radius: 12px;
+    background: #ffffff; padding: 25px; border-radius: 12px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.05);
 }
 
-.order-table {
-    width: 100%;
-    border-collapse: separate; 
-    border-spacing: 0 15px; 
-    margin-top: -15px;
-}
+.custom-table { width: 100%; border-collapse: separate; border-spacing: 0 15px; margin-top: -15px; }
 
-.order-table th {
-    color: #e91e63;
-    font-weight: 700;
-    padding: 10px 15px;
-    text-align: left;
+.custom-table th {
+    color: #e91e63; font-weight: 700; padding: 10px 15px; text-align: left;
+    text-transform: uppercase; font-size: 0.85rem; /* Giữ nguyên cỡ chữ cũ */
     border-bottom: 2px solid #fff0f5;
-    text-transform: uppercase;
-    font-size: 0.85rem;
 }
 
-.order-table tbody tr {
-    background: white;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.02);
-    transition: 0.2s;
+.custom-table tbody tr { background: white; transition: 0.2s; }
+.custom-table tbody tr:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(233, 30, 99, 0.08); }
+
+.custom-table td { padding: 15px; vertical-align: middle; color: #555; border-top: 1px solid #fcfcfc; border-bottom: 1px solid #fcfcfc; }
+.custom-table td:first-child { border-left: 1px solid #fcfcfc; border-radius: 10px 0 0 10px; }
+.custom-table td:last-child { border-right: 1px solid #fcfcfc; border-radius: 0 10px 10px 0; }
+
+/* --- ORDER SPECIFIC ELEMENTS --- */
+.order-id-badge {
+    font-family: "Times New Roman", Times, serif; /* Đổi font nhưng giữ nguyên style badge */
+    background: #fff0f5; color: #d81b60; padding: 5px 10px;
+    border-radius: 6px; font-weight: 600; border: 1px dashed #e91e63;
 }
 
-.order-table tbody tr:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(233, 30, 99, 0.08);
-}
+.price-text { color: #e91e63; font-weight: 700; font-size: 1rem; }
 
-.order-table td {
-    padding: 15px;
-    vertical-align: middle;
-    color: #555;
-    border-top: 1px solid #fcfcfc;
-    border-bottom: 1px solid #fcfcfc;
-}
-
-.order-table td:first-child { border-left: 1px solid #fcfcfc; border-radius: 10px 0 0 10px; }
-.order-table td:last-child { border-right: 1px solid #fcfcfc; border-radius: 0 10px 10px 0; }
-
-/* --- CUSTOM ELEMENTS CHO ĐƠN HÀNG --- */
-.order-id {
-    font-family: 'Consolas', monospace;
-    color: #333;
-    font-weight: 700;
-    background: #eee;
-    padding: 4px 8px;
-    border-radius: 4px;
-}
-
-.customer-info h4 { margin: 0; font-size: 1rem; color: #333; font-weight: 600; }
-.customer-info span { font-size: 0.85rem; color: #888; }
-
-.total-price {
-    color: #e91e63;
-    font-weight: 700;
-    font-size: 1rem;
-}
-
-/* Badge Trạng thái Đơn hàng */
+/* Trạng thái đơn hàng bằng Badge */
 .status-badge {
-    padding: 6px 12px;
-    border-radius: 30px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    display: inline-block;
+    padding: 6px 12px; border-radius: 30px; font-size: 0.8rem; font-weight: 600; display: inline-block;
 }
+.status-pending { background: #fff8e1; color: #f57f17; } 
+.status-shipping { background: #e3f2fd; color: #1565c0; } 
+.status-completed { background: #e8f5e9; color: #2e7d32; } 
+.status-cancelled { background: #ffebee; color: #c62828; } 
 
-/* Các màu trạng thái */
-.st-pending { background: #fff3cd; color: #856404; }   /* Chờ xử lý - Vàng */
-.st-shipping { background: #e3f2fd; color: #0d47a1; }  /* Đang giao - Xanh dương */
-.st-done { background: #d4edda; color: #155724; }      /* Hoàn thành - Xanh lá */
-.st-cancel { background: #f8d7da; color: #721c24; }    /* Đã hủy - Đỏ */
-
-/* Nút thao tác */
 .action-btn {
-    width: 35px;
-    height: 35px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    text-decoration: none;
-    margin-right: 5px;
-    transition: 0.2s;
+    padding: 6px 15px; border-radius: 6px; display: inline-flex;
+    text-decoration: none; font-size: 0.9rem; font-weight: 600;
+    background: #f0f0f0; color: #555; transition: 0.3s;
 }
-
-.btn-view { background: #e3f2fd; color: #1976d2; }
-.btn-view:hover { background: #1976d2; color: white; }
-
-.btn-delete { background: #ffebee; color: #c62828; }
-.btn-delete:hover { background: #c62828; color: white; }
-
+.action-btn:hover { background: #e91e63; color: white; }
 </style>
 
 <div class="main-content">
     <h1 class="dashboard-title">Quản Lý Đơn Hàng</h1>
 
-    <!-- 1. TOOLBAR -->
     <div class="toolbar-panel">
         <form method="GET" action="" style="flex: 1;">
             <div class="search-group">
-                <input type="text" name="search" placeholder="Tìm mã đơn, tên khách hàng..." value="">
+                <input type="text" name="search" placeholder="Tìm mã đơn hàng hoặc tên khách hàng..." value="<?php echo isset($_GET['search']) ? htmlspecialchars($_GET['search']) : ''; ?>">
                 <button class="btn-search" type="submit">
                     <i class="fa-solid fa-magnifying-glass"></i>
                 </button>
             </div>
         </form>
-
-        <!-- Thay nút "Thêm mới" bằng "Xuất Excel" vì đơn hàng thường không tạo thủ công -->
-        <a href="#" class="btn-export">
-            <i class="fa-solid fa-file-export"></i> Xuất Excel
-        </a>
     </div>
 
-    <!-- 2. DANH SÁCH ĐƠN HÀNG -->
     <div class="table-panel">
         <div style="overflow-x: auto;">
-            <table class="order-table">
+            <table class="custom-table">
                 <thead>
                     <tr>
-                        <th width="10%">Mã Đơn</th>
+                        <th width="15%">Mã Đơn</th>
                         <th width="25%">Khách hàng</th>
+                        <th width="20%">Ngày đặt</th>
                         <th width="15%">Tổng tiền</th>
-                        <th width="15%">Ngày đặt</th>
                         <th width="15%">Trạng thái</th>
-                        <th width="10%">Hành động</th>
+                        <th width="10%">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Đơn hàng 1: Mới đặt -->
-                    <tr>
-                        <td><span class="order-id">#ORD-901</span></td>
-                        <td class="customer-info">
-                            <h4>Nguyễn Văn A</h4>
-                            <span>0901.234.567</span>
-                        </td>
-                        <td class="total-price">350.000 đ</td>
-                        <td>25/11/2025<br><small style="color:#999">10:30 AM</small></td>
-                        <td><span class="status-badge st-pending">Chờ xử lý</span></td>
-                        <td>
-                            <a href="order_detail.php?id=901" class="action-btn btn-view" title="Xem chi tiết"><i class="fa-solid fa-eye"></i></a>
-                            <a href="#" class="action-btn btn-delete" title="Hủy đơn"><i class="fa-solid fa-xmark"></i></a>
-                        </td>
-                    </tr>
+                    <?php 
+                        if (!empty($orders)) {
+                            foreach ($orders as $order) {
+                                // Xác định class CSS cho trạng thái
+                                $statusClass = '';
+                                $st = mb_strtolower($order['trangthai']);
+                                if (strpos($st, 'chờ') !== false) $statusClass = 'status-pending';
+                                elseif (strpos($st, 'đang') !== false) $statusClass = 'status-shipping';
+                                elseif (strpos($st, 'hoàn') !== false || strpos($st, 'đã giao') !== false) $statusClass = 'status-completed';
+                                elseif (strpos($st, 'hủy') !== false) $statusClass = 'status-cancelled';
+                                else $statusClass = 'status-pending';
 
-                    <!-- Đơn hàng 2: Đang giao -->
-                    <tr>
-                        <td><span class="order-id">#ORD-899</span></td>
-                        <td class="customer-info">
-                            <h4>Trần Thị B</h4>
-                            <span>b.tran@gmail.com</span>
-                        </td>
-                        <td class="total-price">1.250.000 đ</td>
-                        <td>24/11/2025<br><small style="color:#999">14:15 PM</small></td>
-                        <td><span class="status-badge st-shipping">Đang giao hàng</span></td>
-                        <td>
-                            <a href="order_detail.php?id=899" class="action-btn btn-view" title="Xem chi tiết"><i class="fa-solid fa-eye"></i></a>
-                        </td>
-                    </tr>
-
-                    <!-- Đơn hàng 3: Hoàn thành -->
-                    <tr>
-                        <td><span class="order-id">#ORD-880</span></td>
-                        <td class="customer-info">
-                            <h4>Lê Văn C</h4>
-                            <span>0988.777.666</span>
-                        </td>
-                        <td class="total-price">890.000 đ</td>
-                        <td>20/11/2025<br><small style="color:#999">09:00 AM</small></td>
-                        <td><span class="status-badge st-done">Hoàn thành</span></td>
-                        <td>
-                            <a href="order_detail.php?id=880" class="action-btn btn-view" title="Xem chi tiết"><i class="fa-solid fa-eye"></i></a>
-                        </td>
-                    </tr>
-
-                    <!-- Đơn hàng 4: Đã hủy -->
-                    <tr>
-                        <td><span class="order-id">#ORD-875</span></td>
-                        <td class="customer-info">
-                            <h4>Phạm Thị D</h4>
-                            <span>dpham@yahoo.com</span>
-                        </td>
-                        <td class="total-price">120.000 đ</td>
-                        <td>19/11/2025<br><small style="color:#999">16:45 PM</small></td>
-                        <td><span class="status-badge st-cancel">Đã hủy</span></td>
-                        <td>
-                            <a href="order_detail.php?id=875" class="action-btn btn-view" title="Xem chi tiết"><i class="fa-solid fa-eye"></i></a>
-                            <a href="#" class="action-btn btn-delete" onclick="return confirm('Xóa lịch sử đơn này?')" title="Xóa"><i class="fa-solid fa-trash"></i></a>
-                        </td>
-                    </tr>
-
+                                echo '<tr>';
+                                echo '<td><span class="order-id-badge">#' . str_pad($order['maDonhang'], 5, '0', STR_PAD_LEFT) . '</span></td>';
+                                echo '<td><div class="user-text"><h4>' . htmlspecialchars($order['hoTen']) . '</h4></div></td>';
+                                echo '<td>' . date('d/m/Y H:i', strtotime($order['ngayDat'])) . '</td>';
+                                echo '<td><span class="price-text">' . number_format($order['tongTien'], 0, ',', '.') . '₫</span></td>';
+                                echo '<td><span class="status-badge ' . $statusClass . '">' . htmlspecialchars($order['trangthai']) . '</span></td>';
+                                echo '<td>
+                                        <a href="order_detail.php?id=' . $order['maDonhang'] . '" class="action-btn">Chi tiết</a>
+                                      </td>';
+                                echo '</tr>';
+                            }
+                        } else {
+                            echo '<tr><td colspan="6" style="text-align: center; padding: 30px; color: #888;">Không tìm thấy đơn hàng nào.</td></tr>';
+                        }
+                    ?>
                 </tbody>
             </table>
         </div>
-        
-        <!-- Phân trang -->
-        
     </div>
 </div>
+
+<script>
+    // Loại bỏ thông báo Swiper nếu có xung đột giao diện
+    document.querySelectorAll('.swiper-notification').forEach(el => el.remove());
+</script>
