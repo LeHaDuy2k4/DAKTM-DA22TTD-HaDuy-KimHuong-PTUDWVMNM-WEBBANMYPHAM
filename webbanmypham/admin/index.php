@@ -75,7 +75,7 @@
             <div class="card-icon users-bg"><i class="fa-solid fa-users"></i></div>
         </div>
         <div class="card-box">
-            <div class="card-info"><h3>Sản phẩm</h3><h1><?php echo number_format($total_products); ?></h1></div>
+            <div class="card-info"><h3>Mặt hàng</h3><h1><?php echo number_format($total_products); ?></h1></div>
             <div class="card-icon products-bg"><i class="fa-solid fa-bottle-droplet"></i></div>
         </div>
         <div class="card-box">

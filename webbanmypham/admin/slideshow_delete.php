@@ -13,34 +13,35 @@ if (!isset($_SESSION['quyen']) || $_SESSION['quyen'] != 1) {
 // Yêu cầu file kết nối database
 require("../config.php"); 
 
-// Kiểm tra xem ID (maTC) có được gửi qua URL không
+// Kiểm tra xem ID có được gửi qua URL không
 if (isset($_GET['id']) && !empty($_GET['id'])) {
     
-    // Ép kiểu ID sang số nguyên để bảo mật
-    $targetId = (int)$conn->real_escape_string($_GET['id']);
+    // Ép kiểu sang int để đảm bảo an toàn vì ID thường là số
+    $targetId = (int)$_GET['id'];
     
-    // --- BƯỚC 1: LẤY TÊN FILE ẢNH TRƯỚC KHI XOÁ DỮ LIỆU ---
-    // Mục đích: Để xóa file ảnh thật trong thư mục uploads
-    $get_img_sql = "SELECT hinhAnh FROM trinhchieu WHERE maTC = $targetId";
-    $result = $conn->query($get_img_sql);
+    // --- BƯỚC 1: KIỂM TRA SỰ TỒN TẠI & LẤY TÊN ẢNH ---
+    // Cần lấy tên ảnh để xóa file vật lý sau khi xóa trong CSDL
+    $check_sql = "SELECT hinhAnh FROM trinhchieu WHERE maTC = $targetId";
+    $check_result = $conn->query($check_sql);
 
-    if ($result && $result->num_rows > 0) {
-        $row = $result->fetch_assoc();
-        $fileName = $row['hinhAnh'];
+    if ($check_result && $check_result->num_rows > 0) {
+        $slide_info = $check_result->fetch_assoc();
+        $fileName = $slide_info['hinhAnh'];
         $filePath = "../uploads/" . $fileName;
 
-        // --- BƯỚC 2: THỰC HIỆN XOÁ TRONG CƠ SỞ DỮ LIỆU ---
+        // --- BƯỚC 2: THỰC HIỆN XOÁ TRONG CSDL ---
         $delete_sql = "DELETE FROM trinhchieu WHERE maTC = $targetId";
         
         if ($conn->query($delete_sql) === TRUE) {
             
-            // --- BƯỚC 3: XOÁ FILE ẢNH VẬT LÝ TRÊN SERVER (Nếu tồn tại) ---
+            // --- BƯỚC 3: XOÁ FILE ẢNH VẬT LÝ (Dọn dẹp server) ---
             if (!empty($fileName) && file_exists($filePath)) {
                 unlink($filePath); // Hàm xóa file của PHP
             }
 
-            $message = "Đã xóa slide mã số #" . $targetId . " thành công!";
-            header("Location: slideshow.php?success=" . urlencode($message));
+            $message = "Đã xóa slide mã #" . $targetId . " thành công!";
+            // Sử dụng tham số 'message' giống mẫu user_delete.php
+            header("Location: slideshow.php?message=" . urlencode($message));
             exit();
         } else {
             header("Location: slideshow.php?error=" . urlencode("Lỗi khi xóa CSDL: " . $conn->error));
@@ -48,7 +49,7 @@ if (isset($_GET['id']) && !empty($_GET['id'])) {
         }
 
     } else {
-        header("Location: slideshow.php?error=" . urlencode("Slide không tồn tại hoặc đã bị xóa trước đó."));
+        header("Location: slideshow.php?error=" . urlencode("Slide không tồn tại hoặc đã bị xóa."));
         exit();
     }
     

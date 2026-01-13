@@ -164,19 +164,19 @@
         <div class="footer-section links">
             <h3>Danh Mục</h3>
             <ul>
-                <li><a href="#"><i class="fas fa-arrow-right" style="font-size: 0.8em; margin-right: 5px;"></i> Trang Chủ</a></li>
-                <li><a href="#"><i class="fas fa-arrow-right" style="font-size: 0.8em; margin-right: 5px;"></i> Sản Phẩm Hot</a></li>
-                <li><a href="#"><i class="fas fa-arrow-right" style="font-size: 0.8em; margin-right: 5px;"></i> Khuyến Mãi</a></li>
-                <li><a href="#"><i class="fas fa-arrow-right" style="font-size: 0.8em; margin-right: 5px;"></i> Chính Sách Đổi Trả</a></li>
-                <li><a href="#"><i class="fas fa-arrow-right" style="font-size: 0.8em; margin-right: 5px;"></i> Tuyển Dụng</a></li>
+                <li><a href="index.php"><i class="fas fa-arrow-right" style="font-size: 0.8em; margin-right: 5px;"></i> Trang Chủ</a></li>
+                
+               
+                <li><a href="policy.php"><i class="fas fa-arrow-right" style="font-size: 0.8em; margin-right: 5px;"></i> Chính Sách Đổi Trả</a></li>
+                <li><a href="recruitment.php"><i class="fas fa-arrow-right" style="font-size: 0.8em; margin-right: 5px;"></i> Tuyển Dụng</a></li>
             </ul>
         </div>
 
         <div class="footer-section contact">
             <h3>Thông Tin Liên Hệ</h3>
-            <p><i class="fas fa-envelope" style="margin-right: 8px;"></i> Email: HuonggCosmestics@gmail.com</p>
-            <p><i class="fas fa-phone-alt" style="margin-right: 8px;"></i> Hotline: 0123 456 789</p>    
-            <p><i class="fas fa-map-marker-alt" style="margin-right: 8px;"></i> Địa chỉ: 123 Đường Làm Đẹp, TP. HCM</p>
+            <p><i class="fas fa-envelope" style="margin-right: 8px;"></i> Email: huonggcosmestics@gmail.com</p>
+            <p><i class="fas fa-phone-alt" style="margin-right: 8px;"></i> Hotline: 0865 456 789</p>    
+            <p><i class="fas fa-map-marker-alt" style="margin-right: 8px;"></i> Địa chỉ: Phường Trà Vinh, Tỉnh Vĩnh Long</p>
         </div>
 
         <div class="footer-section social">
